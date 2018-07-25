@@ -6,3 +6,5 @@
 *.iml
 LangTools/out
 .DS_Store
+LangTools/classes/*
+LangTools/src/META-INF

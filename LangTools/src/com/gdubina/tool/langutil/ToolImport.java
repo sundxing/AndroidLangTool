@@ -1,10 +1,18 @@
 package com.gdubina.tool.langutil;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.PrintStream;
-import java.util.Iterator;
+
+import org.apache.poi.hssf.usermodel.HSSFRow;
+import org.apache.poi.hssf.usermodel.HSSFSheet;
+import org.apache.poi.hssf.usermodel.HSSFWorkbook;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.Row;
+import org.dom4j.DocumentException;
+import org.dom4j.io.OutputFormat;
+import org.dom4j.io.SAXReader;
+import org.dom4j.io.XMLWriter;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
+import org.xml.sax.SAXException;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -15,14 +23,8 @@ import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
-
-import org.apache.poi.hssf.usermodel.HSSFRow;
-import org.apache.poi.hssf.usermodel.HSSFSheet;
-import org.apache.poi.hssf.usermodel.HSSFWorkbook;
-import org.apache.poi.ss.usermodel.Cell;
-import org.apache.poi.ss.usermodel.Row;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
+import java.io.*;
+import java.util.Iterator;
 
 public class ToolImport {
 
@@ -36,7 +38,7 @@ public class ToolImport {
 		this.out = out == null ? System.out : out;
 	}
 
-	public static void main(String[] args) throws FileNotFoundException, IOException, ParserConfigurationException, TransformerException {
+	public static void main(String[] args) throws FileNotFoundException, IOException, ParserConfigurationException, TransformerException, SAXException {
 		if(args == null || args.length == 0){
 			System.out.println("File name is missed");
 			return;
@@ -44,7 +46,7 @@ public class ToolImport {
 		run(args[0]);
 	}
 	
-	public static void run(String input) throws FileNotFoundException, IOException, ParserConfigurationException, TransformerException{
+	public static void run(String input) throws FileNotFoundException, IOException, ParserConfigurationException, TransformerException, SAXException {
 		if(input == null || "".equals(input)){
 			System.out.println("File name is missed");
 			return;
@@ -56,10 +58,10 @@ public class ToolImport {
 		ToolImport tool = new ToolImport(null);
 		tool.outResDir = new File("out/" + sheet.getSheetName()+ "/res");
 		tool.outResDir.mkdirs();
-		tool.parse(sheet);		
+		tool.parse(sheet);
 	}
 	
-	public static void run(PrintStream out, String projectDir, String input) throws FileNotFoundException, IOException, ParserConfigurationException, TransformerException{
+	public static void run(PrintStream out, String projectDir, String input) throws FileNotFoundException, IOException, ParserConfigurationException, TransformerException, SAXException {
 		ToolImport tool = new ToolImport(out);
 		if(input == null || "".equals(input)){
 			tool.out.println("File name is missed");
@@ -72,10 +74,10 @@ public class ToolImport {
 
 		tool.outResDir = new File(projectDir, "/res");
 		//tool.outResDir.mkdirs();
-		tool.parse(sheet);		
+		tool.parse(sheet);
 	}
 
-	private void parse(HSSFSheet sheet) throws IOException, TransformerException {
+	private void parse(HSSFSheet sheet) throws IOException, TransformerException, SAXException {
 		Row row = sheet.getRow(0);
 		Iterator<Cell> cells = row.cellIterator();
 		cells.next();// ignore key
@@ -87,11 +89,30 @@ public class ToolImport {
 		}
 	}
 
-	private void generateLang(HSSFSheet sheet, String lang, int column) throws IOException, TransformerException {
-		
-		Document dom = builder.newDocument();
-		Element root = dom.createElement("resources");
-		dom.appendChild(root);
+	private void generateLang(HSSFSheet sheet, String lang, int column) throws IOException, TransformerException, SAXException {
+		File file = getOutResDir(outResDir, lang);
+		Document dom = null;
+		Element root = null;
+		boolean appendMode = file.exists();
+		if (appendMode) {
+			System.out.println( file.getName() + "; File has exit");
+			Document document = builder.parse(file);
+			document.setXmlStandalone(true);
+			NodeList nodeList = document.getElementsByTagName("resources");
+			appendMode = nodeList != null && nodeList.getLength() == 1;
+			if (appendMode) {
+				dom = document;
+				root = (Element) nodeList.item(0);
+			}
+		}
+
+		if (!appendMode) {
+			System.out.println( file.getName() + "; Create new file");
+
+			dom = builder.newDocument();
+			root = dom.createElement("resources");
+			dom.appendChild(root);
+		}
 		
 		Iterator<Row> iterator = sheet.rowIterator();
 		iterator.next();//ignore first row;
@@ -180,23 +201,28 @@ public class ToolImport {
 			}
 
 		}
-		
-		save(dom, lang);
+
+
+		save(dom, file);
 	}
 	
 	private static void addEmptyKeyValue(Document dom, Element root, String key){
 		root.appendChild(dom.createComment(String.format(" TODO: string name=\"%s\" ", key)));
-	} 
+	}
 
-	private void save(Document doc, String lang) throws TransformerException {
+	private File getOutResDir(File outDir, String lang) {
 		File dir;
-		if("default".equals(lang) || lang == null || "".equals(lang)){
-			dir = new File(outResDir, "values");
-		}else{
-			dir = new File(outResDir, "values-" + lang);
+		if ("default".equals(lang) || lang == null || "".equals(lang)) {
+			dir = new File(outDir, "values");
+		} else {
+			dir = new File(outDir, "values-" + lang);
 		}
 		dir.mkdir();
-		
+		return new File(dir, "strings.xml");
+	}
+
+	private void save(Document doc, File destFile) throws TransformerException {
+
 		//DOMUtils.prettyPrint(doc);
 		TransformerFactory transformerFactory = TransformerFactory.newInstance();
 		Transformer transformer = transformerFactory.newTransformer();
@@ -204,11 +230,34 @@ public class ToolImport {
 		transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "2");
 		
 		DOMSource source = new DOMSource(doc);
-		StreamResult result = new StreamResult(new File(dir, "strings.xml"));
+		StreamResult result = new StreamResult(destFile);
 
 		transformer.transform(source, result);
 	}
-	
+
+	public static void appendXMLByDOM4J(String fileName) throws IOException {
+		// 1.创建一个SAXReader对象reader
+		SAXReader reader = new SAXReader();
+		try {
+			// 2.通过reader对象的read方法加载xml文件，获取Document对象
+			org.dom4j.Document document = reader.read(new File(fileName));
+			org.dom4j.Element bookStore = document.getRootElement();
+
+			org.dom4j.Element book = bookStore.element("book");
+			org.dom4j.Element language = book.addElement("language");
+			language.setText("简体中文");
+
+			// 3.设置输出格式和输出流
+			OutputFormat format = OutputFormat.createPrettyPrint();
+			XMLWriter writer = new XMLWriter(new FileOutputStream(
+					"books_append_dom4j.xml"), format);
+			writer.write(document);// 将文档写入到输出流
+			writer.close();
+
+		} catch (DocumentException e) {
+			e.printStackTrace();
+		}
+	}
 /*
 	private static String eluminateText(String text) {
 		return text.replace("'", "\\'").replace("\"", "\\\"");
