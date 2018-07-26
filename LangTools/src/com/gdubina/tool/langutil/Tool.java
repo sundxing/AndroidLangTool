@@ -16,7 +16,7 @@ public class Tool {
 		}
 		
 		if("-i".equals(args[0])){
-			ToolImport.run(args[1]);
+			ToolImport.run(args[1], args.length > 2 ? args[2] : null);
 		}else if("-e".equals(args[0])){
 			if (args.length > 2 && "-l".equals(args[2])) {
 				String infileName = null;

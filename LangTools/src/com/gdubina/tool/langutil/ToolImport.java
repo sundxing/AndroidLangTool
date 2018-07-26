@@ -43,10 +43,10 @@ public class ToolImport {
 			System.out.println("File name is missed");
 			return;
 		}
-		run(args[0]);
+		run(args[0], null);
 	}
 	
-	public static void run(String input) throws FileNotFoundException, IOException, ParserConfigurationException, TransformerException, SAXException {
+	public static void run(String input, String outPath) throws FileNotFoundException, IOException, ParserConfigurationException, TransformerException, SAXException {
 		if(input == null || "".equals(input)){
 			System.out.println("File name is missed");
 			return;
@@ -56,11 +56,44 @@ public class ToolImport {
 		
 
 		ToolImport tool = new ToolImport(null);
-		tool.outResDir = new File("out/" + sheet.getSheetName()+ "/res");
+		if (outPath != null) {
+			int i =  outPath.indexOf("/res");
+			if ( i >= 0) {
+				outPath = outPath.substring(0, i + "/res".length());
+				System.out.println("outPath trim : " + outPath);
+			} else {
+				// find in children
+				File file = new File(outPath);
+				outPath = findFilePath(file, "res");
+				System.out.println("outPath child : " + outPath);
+			}
+		}
+		tool.outResDir = new File(outPath != null ? outPath : "out/" + sheet.getSheetName()+ "/res");
 		tool.outResDir.mkdirs();
 		tool.parse(sheet);
 	}
-	
+
+	private static String findFilePath(File srouceFile, String target) {
+		File[] files = srouceFile.listFiles();
+		if (files == null) {
+			return null;
+		}
+		for (File file : files) {
+			if (file.isDirectory()) {
+				System.out.println("outPath child find >> " + file.getName());
+				if (file.getName().equals(target)) {
+					return file.getPath();
+				} else {
+					String result = findFilePath(file, target);
+					if (result != null) {
+						return result;
+					}
+				}
+			}
+		}
+		return null;
+	}
+
 	public static void run(PrintStream out, String projectDir, String input) throws FileNotFoundException, IOException, ParserConfigurationException, TransformerException, SAXException {
 		ToolImport tool = new ToolImport(out);
 		if(input == null || "".equals(input)){
