@@ -1,31 +1,17 @@
 package com.gdubina.tool.langutil;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.PrintStream;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
-
-import org.apache.poi.hssf.usermodel.HSSFCell;
-import org.apache.poi.hssf.usermodel.HSSFCellStyle;
-import org.apache.poi.hssf.usermodel.HSSFFont;
-import org.apache.poi.hssf.usermodel.HSSFRow;
-import org.apache.poi.hssf.usermodel.HSSFSheet;
-import org.apache.poi.hssf.usermodel.HSSFWorkbook;
+import org.apache.poi.hssf.usermodel.*;
 import org.apache.poi.hssf.util.HSSFColor;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+import java.io.*;
+import java.util.*;
 
 
 public class ToolExport {
@@ -34,6 +20,7 @@ public class ToolExport {
 	
 	private DocumentBuilder builder;
 	private File outExcelFile;
+	private List<String> filterList = new ArrayList<>();
 	private String project;
 	private Map<String, Integer> keysIndex;
 	private PrintStream out;
@@ -50,24 +37,41 @@ public class ToolExport {
 			System.out.println("Project folder doesn't exists");
 			return;
 		}
-		run(null, args[0], args.length > 1 ? args[1] : null, null);
+		run(null, args[0], null, args.length > 1 ? args[1] : null, null);
 	}
 	
 	public static void run(String projectDir, String outputFile) throws SAXException, IOException, ParserConfigurationException {
-		run(null, projectDir, outputFile, null);
+		run(null, projectDir, null, outputFile, null);
 	}
 
 	public static void run(String projectDir, String outputFile, String inFileName) throws SAXException, IOException, ParserConfigurationException {
-		run(null, projectDir, outputFile, inFileName);
+		run(null, projectDir, null, outputFile, inFileName);
 	}
 	
-	public static void run(PrintStream out, String projectDir, String outputFile, String inFileName) throws SAXException, IOException, ParserConfigurationException {
+	public static void run(PrintStream out, String projectDir, String listFilter, String outputFile, String inFileName) throws SAXException, IOException, ParserConfigurationException {
+		System.out.println("projectDir " + projectDir);
+		System.out.println("listFilter " + listFilter);
+		System.out.println("outputFile " + outputFile);
+		System.out.println("inFileName " + inFileName);
+
+
+
 		ToolExport tool = new ToolExport(out);
 		if(projectDir == null || "".equals(projectDir)){
 			tool.out.println("Project folder doesn't exists");
 			return;
 		}
 		File project = new File(projectDir);
+
+		if (listFilter != null) {
+			StringBuffer sb = new StringBuffer();
+			FileUtils.readToBuffer(sb, listFilter);
+			String[] list = sb.toString().split("\n");
+			System.out.println("list size: " + list.length + ", " + list[0]);
+			tool.filterList = Arrays.asList(list);
+		}
+
+
 		tool.outExcelFile = new File(outputFile != null ? outputFile : "exported_strings_" + System.currentTimeMillis() + ".xls");
 		tool.project = project.getName();
 		tool.inputFileName = inFileName == null ? "strings.xml" : inFileName;
@@ -259,6 +263,9 @@ public class ToolExport {
 					continue;
 				}
 				String key = item.getAttributes().getNamedItem("name").getNodeValue();
+				if (keyToIgnore(key)) {
+					continue;
+				}
 				keys.put(key, rowIndex);
 				
 				HSSFRow row = sheet.createRow(rowIndex++);
@@ -336,7 +343,11 @@ public class ToolExport {
 		out.println("DEFAULT language was processed");
 		return keys;
 	}
-	
+
+	private boolean keyToIgnore(String key) {
+		return filterList != null && !filterList.isEmpty() && !filterList.contains(key);
+	}
+
 	private void exportLangToExcel(String project, String lang, NodeList strings, File f, Map<String, Integer> keysIndex) throws FileNotFoundException, IOException{
 		out.println();
 		out.println(String.format("Start processing: '%s'", lang));
@@ -356,7 +367,12 @@ public class ToolExport {
 				if(translatable != null && "false".equals(translatable.getNodeValue())){
 					continue;
 				}
+
 				String key = item.getAttributes().getNamedItem("name").getNodeValue();
+				if (keyToIgnore(key)) {
+					continue;
+				}
+
 				Integer index = keysIndex.get(key);
 				if(index == null){
 					out.println("\t" + key + " - row does not exist");

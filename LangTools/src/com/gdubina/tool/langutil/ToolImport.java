@@ -89,13 +89,22 @@ public class ToolImport {
 		}
 	}
 
+	/**
+	 * 单个语言项目
+	 * @param sheet
+	 * @param lang
+	 * @param column
+	 * @throws IOException
+	 * @throws TransformerException
+	 * @throws SAXException
+	 */
 	private void generateLang(HSSFSheet sheet, String lang, int column) throws IOException, TransformerException, SAXException {
 		File file = getOutResDir(outResDir, lang);
 		Document dom = null;
 		Element root = null;
 		boolean appendMode = file.exists();
 		if (appendMode) {
-			System.out.println( file.getName() + "; File has exit");
+			System.out.println( file.getAbsolutePath() + "; File has exit");
 			Document document = builder.parse(file);
 			document.setXmlStandalone(true);
 			NodeList nodeList = document.getElementsByTagName("resources");
@@ -104,10 +113,11 @@ public class ToolImport {
 				dom = document;
 				root = (Element) nodeList.item(0);
 			}
+			// 更新
 		}
 
 		if (!appendMode) {
-			System.out.println( file.getName() + "; Create new file");
+			System.out.println( file.getAbsolutePath() + "; Create new file");
 
 			dom = builder.newDocument();
 			root = dom.createElement("resources");
@@ -145,6 +155,7 @@ public class ToolImport {
 			int plurarIndex = key.indexOf("#");
 			int arrayDotIndex = key.indexOf(".");
 			if(plurarIndex == -1 && arrayDotIndex == -1){//string
+				System.out.println("add key : " + key);
 				Cell valueCell = row.getCell(column);
 				if(valueCell == null){
 					addEmptyKeyValue(dom, root, key);
