@@ -40,15 +40,27 @@ public class Tool {
 			} else {
 				ToolExport.run(args[1], args.length > 2 ? args[2] : null);
 			}
-		}else{
+		} else if ("-t".equals(args[0]) && args.length >= 3) {
+			if (args.length == 5 && "-l".equals(args[3])) {
+				ToolExport.run(null, args[1], args[4], "temp.xls", null);
+			} else {
+				ToolExport.run(args[1], "temp.xls");
+			}
+			ToolImport.run("temp.xls", args[2]);
+		} else if ("-r".equals(args[0]) && args.length >= 3) {
+			ToolRmove.run(null, args[1], args[2], "", null);
+		} else {
 			printHelp();
 		}
 	}
 	
 	private static void printHelp(){
 		System.out.println("commands format:");
-		System.out.println("\texport: -e <project dir> [-l <list of string names to export(others are ignore)>] [-f <input file name>] <output file>");
-		System.out.println("\timport: -i <input file>");
+		System.out.println("\texport: -e <project dir> [-l <string list>] [-f <input file name>] <output file>");
+		System.out.println("\timport: -i <input file> [<output dir>]");
+		System.out.println("\ttransform: -t <project dir 1> <project dir 2> [-l <string list>]");
+		System.out.println("\tremove: -r <project dir> <string list>");
+
 	}
 
 }
