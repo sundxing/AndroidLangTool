@@ -16,8 +16,9 @@ import java.util.*;
 
 public class ToolExport {
 	
-	private static final String DIR_VALUES = "values"; 
-	
+	private static final String DIR_VALUES = "values";
+	private static boolean ignoreComment;
+
 	private DocumentBuilder builder;
 	private File outExcelFile;
 	private List<String> filterList = new ArrayList<>();
@@ -61,25 +62,32 @@ public class ToolExport {
 			tool.out.println("Project folder doesn't exists");
 			return;
 		}
-		File project = new File(projectDir);
+
+		String outPath = FileUtils.seekToResPath(projectDir);
+		File project = new File(outPath);
 
 		if (listFilter != null) {
 			StringBuffer sb = new StringBuffer();
 			FileUtils.readToBuffer(sb, listFilter);
 			String[] list = sb.toString().split("\n");
 			System.out.println("list size: " + list.length + ", " + list[0]);
+			if (list.length > 0) {
+				ignoreComment = true;
+			} else {
+				ignoreComment = false;
+			}
 			tool.filterList = Arrays.asList(list);
 		}
 
 
 		tool.outExcelFile = new File(outputFile != null ? outputFile : "exported_strings_" + System.currentTimeMillis() + ".xls");
-		tool.project = project.getName();
+		tool.project = project.getParentFile().getName();
 		tool.inputFileName = inFileName == null ? "strings.xml" : inFileName;
 		tool.export(project);
 	}
 	
 	private void export(File project) throws SAXException, IOException{
-		File res = new File(project, "res");
+		File res = project;
 		if (res == null || !res.exists()) {
 			System.out.println("res folder doesn't exists");
 			return;
@@ -114,6 +122,7 @@ public class ToolExport {
 	
 	private void exportLang(String lang, File valueDir) throws FileNotFoundException, IOException, SAXException{
 		File stringFile = new File(valueDir, inputFileName);
+		// values-XX folder has not string.xml
 		if(!stringFile.exists()){
 			return;
 		}
@@ -249,7 +258,7 @@ public class ToolExport {
 			if(item.getNodeType() == Node.TEXT_NODE){
 				
 			} 
-			if(item.getNodeType() == Node.COMMENT_NODE){
+			if(item.getNodeType() == Node.COMMENT_NODE && !ignoreComment){
 				HSSFRow row = sheet.createRow(rowIndex++);
 				HSSFCell cell = row.createCell(0);
 				cell.setCellValue(String.format("/** %s **/", item.getTextContent()));

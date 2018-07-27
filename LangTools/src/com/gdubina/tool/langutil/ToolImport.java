@@ -11,6 +11,7 @@ import org.dom4j.io.SAXReader;
 import org.dom4j.io.XMLWriter;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
+import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
@@ -24,6 +25,7 @@ import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 import java.io.*;
+import java.util.HashMap;
 import java.util.Iterator;
 
 public class ToolImport {
@@ -31,6 +33,7 @@ public class ToolImport {
 	private DocumentBuilder builder;
 	private File outResDir;
 	private PrintStream out;
+	private HashMap<String, Node>  stringNodeHashMap = new HashMap<>();
 
 	public ToolImport(PrintStream out) throws ParserConfigurationException {
 		DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
@@ -56,43 +59,12 @@ public class ToolImport {
 		
 
 		ToolImport tool = new ToolImport(null);
-		if (outPath != null) {
-			int i =  outPath.indexOf("/res");
-			if ( i >= 0) {
-				outPath = outPath.substring(0, i + "/res".length());
-				System.out.println("outPath trim : " + outPath);
-			} else {
-				// find in children
-				File file = new File(outPath);
-				outPath = findFilePath(file, "res");
-				System.out.println("outPath child : " + outPath);
-			}
-		}
+		outPath = FileUtils.seekToResPath(outPath);
 		tool.outResDir = new File(outPath != null ? outPath : "out/" + sheet.getSheetName()+ "/res");
 		tool.outResDir.mkdirs();
 		tool.parse(sheet);
 	}
 
-	private static String findFilePath(File srouceFile, String target) {
-		File[] files = srouceFile.listFiles();
-		if (files == null) {
-			return null;
-		}
-		for (File file : files) {
-			if (file.isDirectory()) {
-				System.out.println("outPath child find >> " + file.getName());
-				if (file.getName().equals(target)) {
-					return file.getPath();
-				} else {
-					String result = findFilePath(file, target);
-					if (result != null) {
-						return result;
-					}
-				}
-			}
-		}
-		return null;
-	}
 
 	public static void run(PrintStream out, String projectDir, String input) throws FileNotFoundException, IOException, ParserConfigurationException, TransformerException, SAXException {
 		ToolImport tool = new ToolImport(out);
@@ -146,10 +118,21 @@ public class ToolImport {
 				dom = document;
 				root = (Element) nodeList.item(0);
 			}
-			// 更新
+
 		}
 
-		if (!appendMode) {
+		if (appendMode) {
+			// 更新 找到相同Id的则
+			stringNodeHashMap.clear();
+			NodeList stringNodes = root.getElementsByTagName("string");
+			for (int i = 0; i < stringNodes.getLength(); i++) {
+
+				Node node = stringNodes.item(i);
+				String stringId = node.getAttributes().getNamedItem("name").getTextContent();
+				stringNodeHashMap.put(stringId, node);
+			}
+		} else {
+			// 新建文件
 			System.out.println( file.getAbsolutePath() + "; Create new file");
 
 			dom = builder.newDocument();
@@ -188,17 +171,22 @@ public class ToolImport {
 			int plurarIndex = key.indexOf("#");
 			int arrayDotIndex = key.indexOf(".");
 			if(plurarIndex == -1 && arrayDotIndex == -1){//string
-				System.out.println("add key : " + key);
 				Cell valueCell = row.getCell(column);
 				if(valueCell == null){
 					addEmptyKeyValue(dom, root, key);
 					continue;
 				}
+
 				String value = valueCell.toString();// value
-				
-				if(value.isEmpty()){
+				// Check if string name has exit, if so, we update text content.
+				if (stringNodeHashMap.containsKey(key)) {
+					stringNodeHashMap.get(key).setTextContent(value);
+					System.out.println("update key : " + key);
+
+				} else if(value.isEmpty()){
 					addEmptyKeyValue(dom, root, key);
-				}else {
+				} else {
+					System.out.println("add key : " + key);
 					Element node = dom.createElement("string");
 					node.setAttribute("name", key);
 					node.setTextContent(value);
@@ -251,6 +239,7 @@ public class ToolImport {
 	}
 	
 	private static void addEmptyKeyValue(Document dom, Element root, String key){
+		System.out.println("key not has value : " + key);
 		root.appendChild(dom.createComment(String.format(" TODO: string name=\"%s\" ", key)));
 	}
 
